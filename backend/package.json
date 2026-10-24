@@ -20,6 +20,12 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:seed": "prisma db execute --file prisma/seed.sql"
   },
+  "overrides": {
+    "multer": "2.5.0",
+    "@nestjs/swagger": {
+      "js-yaml": "5.5.0"
+    }
+  },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
