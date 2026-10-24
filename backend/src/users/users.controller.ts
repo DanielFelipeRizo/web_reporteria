@@ -5,6 +5,7 @@ import {
 import { UsersService } from './users.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { AssignRolesDto, CreateUserDto, SetPasswordDto, UpdateUserDto } from './dto/user.dto';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -19,7 +20,7 @@ export class UsersController {
 
   @Post()
   @ApiOperation({ summary: 'Crear nuevo usuario (password se hashea automáticamente)' })
-  create(@Body() body: { login: string; pswd: string; name?: string; email?: string; priv_admin?: string }) {
+  create(@Body() body: CreateUserDto) {
     return this.usersService.create(body);
   }
 
@@ -27,7 +28,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Editar datos del usuario (nombre, email, estado activo)' })
   update(
     @Param('login') login: string,
-    @Body() body: { name?: string; email?: string; usr_active?: string },
+    @Body() body: UpdateUserDto,
   ) {
     return this.usersService.update(login, body);
   }
@@ -40,14 +41,14 @@ export class UsersController {
   @ApiOperation({ summary: 'Cambiar contraseña de un usuario (solo Admin)' })
   changePassword(
     @Param('login') login: string,
-    @Body() body: { newPassword: string },
+    @Body() body: SetPasswordDto,
   ) {
     return this.usersService.changePassword(login, body.newPassword);
   }
 
   @Put(':login/roles')
   @ApiOperation({ summary: 'Asignar roles al usuario (reemplaza los actuales)' })
-  assignRoles(@Param('login') login: string, @Body() body: { groupIds: number[] }) {
+  assignRoles(@Param('login') login: string, @Body() body: AssignRolesDto) {
     return this.usersService.assignRoles(login, body.groupIds);
   }
 }

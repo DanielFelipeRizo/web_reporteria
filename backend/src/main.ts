@@ -6,6 +6,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { PrismaService } from './prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { appValidationPipe } from './common/pipes/app-validation.pipe';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -19,6 +20,8 @@ async function bootstrap() {
   app.useGlobalGuards(new JwtAuthGuard(jwtService, reflector));
   // El Audit Interceptor registra en sc_log TODA petición autenticada
   app.useGlobalInterceptors(new AuditInterceptor(prismaService));
+  // Valida los cuerpos tipados con DTOs (responde 400 en vez de 500)
+  app.useGlobalPipes(appValidationPipe);
 
   // ── Swagger ─────────────────────────────────────────────────────────────
   const config = new DocumentBuilder()

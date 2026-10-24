@@ -1,14 +1,16 @@
 import { BadRequestException } from '@nestjs/common';
 
-const MAX_LIMIT = 500;
-
 /**
  * Normaliza la paginación de los listados.
  * Valores ausentes, no numéricos o menores a 1 toman el valor por defecto.
  */
-export function parsePagination(page?: number, limit?: number) {
+export function parsePagination(
+  page?: number,
+  limit?: number,
+  { defaultLimit = 20, maxLimit = 500 } = {},
+) {
   const safePage  = Number.isInteger(page)  && page!  > 0 ? page!  : 1;
-  const safeLimit = Number.isInteger(limit) && limit! > 0 ? Math.min(limit!, MAX_LIMIT) : 20;
+  const safeLimit = Number.isInteger(limit) && limit! > 0 ? Math.min(limit!, maxLimit) : defaultLimit;
   return { page: safePage, limit: safeLimit, offset: (safePage - 1) * safeLimit };
 }
 

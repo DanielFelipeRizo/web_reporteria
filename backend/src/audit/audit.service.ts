@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { parseDateParam, parsePagination } from '../common/utils/query-params';
 
 @Injectable()
 export class AuditService {
@@ -14,18 +16,23 @@ export class AuditService {
     page?: number;
     limit?: number;
   }) {
-    const page = filters.page ?? 1;
-    const limit = Math.min(filters.limit ?? 50, 200); // máximo 200 registros por página
-    const skip = (page - 1) * limit;
+    // máximo 200 registros por página
+    const { page, limit, offset: skip } = parsePagination(filters.page, filters.limit, { defaultLimit: 50, maxLimit: 200 });
 
-    const where: any = {};
+    const where: Prisma.sc_logWhereInput = {};
     if (filters.username) where.username = { contains: filters.username, mode: 'insensitive' };
     if (filters.application) where.application = { contains: filters.application, mode: 'insensitive' };
     if (filters.action) where.action = filters.action;
     if (filters.from || filters.to) {
-      where.inserted_date = {};
-      if (filters.from) where.inserted_date.gte = new Date(filters.from);
-      if (filters.to) where.inserted_date.lte = new Date(filters.to);
+      const rango: Prisma.DateTimeNullableFilter = {};
+      if (filters.from) rango.gte = new Date(parseDateParam(filters.from, 'from'));
+      if (filters.to) {
+        // "Hasta" incluye el día completo
+        const hasta = new Date(parseDateParam(filters.to, 'to'));
+        hasta.setUTCDate(hasta.getUTCDate() + 1);
+        rango.lt = hasta;
+      }
+      where.inserted_date = rango;
     }
 
     const [data, total] = await Promise.all([

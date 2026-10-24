@@ -5,6 +5,7 @@ import {
 import { RolesService } from './roles.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { SaveRoleDto, UpdatePermissionsDto } from './dto/role.dto';
 
 @ApiTags('roles')
 @ApiBearerAuth()
@@ -23,11 +24,11 @@ export class RolesController {
 
   @Post()
   @ApiOperation({ summary: 'Crear nuevo rol' })
-  create(@Body() body: { description: string }) { return this.rolesService.create(body.description); }
+  create(@Body() body: SaveRoleDto) { return this.rolesService.create(body.description); }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Editar descripción de un rol' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: { description: string }) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() body: SaveRoleDto) {
     return this.rolesService.update(id, body.description);
   }
 
@@ -41,7 +42,7 @@ export class RolesController {
 
   @Put(':id/permissions')
   @ApiOperation({ summary: 'Actualizar permisos del rol' })
-  updatePermissions(@Param('id', ParseIntPipe) id: number, @Body() body: { permissions: any[] }) {
+  updatePermissions(@Param('id', ParseIntPipe) id: number, @Body() body: UpdatePermissionsDto) {
     return this.rolesService.updatePermissions(id, body.permissions);
   }
 }
