@@ -7,10 +7,13 @@ import { JwtModule } from '@nestjs/jwt';
 @Module({
   imports: [
     UsersModule,
-    JwtModule.register({
+    JwtModule.registerAsync({
       global: true,
-      secret: 'SECRET_KEY_FOR_JWT', // En producción, usar variables de entorno
-      signOptions: { expiresIn: '1h' },
+      useFactory: () => {
+        const secret = process.env.JWT_SECRET;
+        if (!secret) throw new Error('Falta JWT_SECRET en backend/.env');
+        return { secret, signOptions: { expiresIn: '1h' } };
+      },
     }),
   ],
   providers: [AuthService],
