@@ -1,0 +1,59 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Dependencias (Se ignora node_modules en todas las carpetas)
+node_modules/
+
+# OS Files (MacOS/Windows)
+.DS_Store
+Thumbs.db
+
+# IDEs y Editores
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Variables de Entorno (¡CRÍTICO!)
+.env
+.env.*
+!.env.example
+
+# ======= FRONTEND (Next.js) =======
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.vercel/
+
+# ======= BACKEND (NestJS) =======
+backend/dist/
+backend/build/
+
+# ======= BASE DE DATOS Y PRISMA =======
+# Ignorar bases de datos locales SQLite (si se llegaran a usar en dev)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Ocultar bases de datos pero PERMITIR migraciones
+# ¡NOTA!: Si usas Prisma con migraciones, SI SE SUBE la carpeta `migrations/` 
+# pero NO la base de datos local.
+
+# ======= ARCHIVOS TEMPORALES Y DATA =======
+coverage/
+.nyc_output/
+*.pem
+*.key
+*.cert
+secrets.json
+temp/
+tmp/

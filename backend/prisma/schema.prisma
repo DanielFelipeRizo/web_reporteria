@@ -1,0 +1,286 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model CierreTransaccion {
+  Cierre_id             BigInt    @default(autoincrement())
+  Cierre_TerminalID     String    @db.VarChar(15)
+  Cierre_Lot            String?   @db.VarChar(250)
+  Cierre_Date           DateTime  @db.Timestamp(6)
+  Cierre_TypeTrx        Int
+  Cierre_TypeCierre     Int
+  Cierre_Totales        String
+  Cierre_Batch          String
+  Merchant_Email        String    @db.VarChar(250)
+  Merchant_Name         String?   @db.VarChar(150)
+  Merchant_Address      String?   @db.VarChar(150)
+  Merchant_Phone        String?   @db.VarChar(20)
+  Merchant_City         String    @db.VarChar(150)
+  Merchant_MID          String    @db.VarChar(150)
+  Merchant_TID          String    @db.VarChar(50)
+  Cierre_UUID           String    @db.VarChar(250)
+  Transac_RESERVADO1    String?   @db.VarChar(255)
+  Transac_RESERVADO2    String?   @db.VarChar(255)
+  Transac_RESERVADO3    String?   @db.VarChar(255)
+  Transac_RESERVADO4    String?   @db.VarChar(255)
+  Transac_RESERVADO5    String?   @db.VarChar(255)
+  MODELOPOS             String?   @db.VarChar(255)
+  Merchant_RESERVADO1   String?   @db.VarChar(255)
+  Merchant_RESERVADO2   String?   @db.VarChar(255)
+  Merchant_RESERVADO3   String?   @db.VarChar(255)
+  Cierre_CreatedAt      DateTime? @default(now()) @db.Timestamp(6)
+  Cierre_CreatedDerived Boolean   @default(false)
+
+  @@id([Cierre_Date, Cierre_UUID])
+}
+
+model Client {
+  Client_id    BigInt     @default(autoincrement())
+  Client_CC    String     @db.VarChar(100)
+  Client_Email String     @db.VarChar(250)
+  Client_Phone String?    @db.VarChar(20)
+  Client_Auth  String     @db.VarChar(250)
+  Client_UUID  String     @db.VarChar(250)
+  Tipo_Envio   Int        @default(6)
+  tipo_envio   tipo_envio @relation(fields: [Tipo_Envio], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_Client_TipoEnvio")
+
+  @@id([Client_Auth, Client_UUID])
+  @@index([Client_UUID], map: "IX_Client_Client_UUID")
+}
+
+model Merchants {
+  merchant_id                BigInt  @default(autoincrement())
+  merchant_Title             String  @db.VarChar(100)
+  merchant_Name              String? @db.VarChar(50)
+  merchant_Address           String? @db.VarChar(50)
+  merchant_Phone             String? @db.VarChar(20)
+  merchant_City              String  @db.VarChar(25)
+  merchant_MID               String  @db.VarChar(150)
+  merchant_TID               String  @db.VarChar(50)
+  merchant_TrxID             String  @db.VarChar(50)
+  merchant_VersionPos        String  @db.VarChar(150)
+  merchant_UUID              String  @db.VarChar(250)
+  merchant_expirationInvoice BigInt?
+  merchant_modeloPos         String? @db.VarChar(50)
+  Email                      String  @default("NA") @db.VarChar(100)
+
+  @@id([merchant_TrxID, merchant_UUID])
+  @@index([merchant_Name], map: "IX_Merchants_Name")
+  @@index([merchant_UUID], map: "IX_Merchants_merchant_UUID")
+}
+
+model ModeloTerminal {
+  model_id          Int     @id
+  model_descripcion String? @db.VarChar(50)
+}
+
+model TransactionQr {
+  Id                      BigInt   @id @default(autoincrement())
+  Uuid                    String   @unique(map: "UQ_TransactionQrPix_Uuid") @db.VarChar(100)
+  TipoTransaccionTitle    String?  @db.VarChar(200)
+  TipoTransaccion         String?  @db.VarChar(100)
+  Pan                     String?  @db.VarChar(150)
+  TipoLectura             String?  @db.VarChar(100)
+  NumeroAprobacion        String?  @db.VarChar(100)
+  Referencia              String?  @db.VarChar(200)
+  DateTime                DateTime @db.Timestamp(6)
+  Tipo                    String?  @db.VarChar(50)
+  RegistroContribuyente   String?  @db.VarChar(100)
+  ReferenciaPix           String?  @db.VarChar(200)
+  MonedaUsdBs             String?  @db.VarChar(10)
+  MontoPago               Decimal? @db.Decimal(18, 2)
+  MonedaReales            String?  @db.VarChar(10)
+  MontoReales             Decimal? @db.Decimal(18, 2)
+  TasaCambio              String?  @db.VarChar(50)
+  PiePagina               String?  @db.VarChar(200)
+  LeyendaAsfi             String?  @db.VarChar(500)
+  tipo_estado_transaction String?  @db.VarChar(1)
+  flag_modo_caja          String?  @db.VarChar(1)
+  Res1                    String?  @db.VarChar(200)
+  Res2                    String?  @db.VarChar(200)
+  Res3                    String?  @db.VarChar(200)
+  Res4                    String?  @db.VarChar(200)
+  Res5                    String?  @db.VarChar(200)
+
+  @@index([Id], map: "IX_TransactionQrPix_Id")
+  @@index([Uuid], map: "IX_TransactionQrPix_Uuid")
+  @@index([Res1, DateTime], map: "IX_TransactionQr_Lot_Date")
+}
+
+model Transactions {
+  Transac_id                  BigInt          @default(autoincrement())
+  Transac_Lot                 String?         @db.VarChar(250)
+  Transac_Ref                 String?         @db.VarChar(250)
+  Transac_TypeTrx             Int
+  Transac_TypeRead            Int
+  Transac_Label               String          @db.VarChar(150)
+  Transac_NameCard            String          @db.VarChar(150)
+  Transac_AID                 String          @db.VarChar(150)
+  Transac_NumCard             String          @db.VarChar(150)
+  Transac_Date                DateTime        @db.Timestamp(6)
+  Transac_RRN                 String?         @db.VarChar(250)
+  Transac_Aut                 String          @db.VarChar(250)
+  Transac_SMOD                String          @db.VarChar(10)
+  Transac_IVA                 String          @db.VarChar(10)
+  Transac_Service             String?         @db.VarChar(15)
+  Transac_Tip                 String?         @db.VarChar(15)
+  Transac_Total               String?         @db.VarChar(100)
+  Transac_ClientID            String          @db.VarChar(100)
+  Transac_UUID                String          @db.VarChar(250)
+  Transac_DateVenc            String?         @db.VarChar(50)
+  transac_TypeTarjet          String?         @db.VarChar(150)
+  Transac_msgEstadoPagoQr     String?         @db.VarChar(200)
+  Transac_FLAG_DONACION       String?         @db.VarChar(50)
+  Transac_CUOTAS              String?         @db.VarChar(50)
+  Transac_CASHBACK            String?         @db.VarChar(50)
+  Transac_DESC_BJ             String?         @db.VarChar(50)
+  Transac_MSG_BJ              String?         @db.VarChar(200)
+  Transac_PROMO_BANX          String?         @db.VarChar(50)
+  Transac_MSG_PROMO_BANX      String?         @db.VarChar(200)
+  Transac_TITLE               String?         @db.VarChar(200)
+  Transac_FOOTER              String?         @db.VarChar(200)
+  Transac_TIPO_SALE           String?         @db.VarChar(50)
+  Transac_CONSUMO_AMOUNT      String?         @db.VarChar(50)
+  Transac_RESERVADO1          String?         @db.VarChar(200)
+  Transac_RESERVADO2          String?         @db.VarChar(200)
+  Transac_RESERVADO3          String?         @db.VarChar(200)
+  Transac_Change_Currency     String?         @db.VarChar(10)
+  Transac_Change_Amount       String?         @db.VarChar(50)
+  Transac_Markup              String?         @db.VarChar(10)
+  Transac_Total_Change_Amount String?         @db.VarChar(50)
+  Transac_modo_caja           Boolean         @default(false)
+  Transac_Amount              String?         @db.VarChar(15)
+  Transac_PartialAmount       String          @default("0") @db.VarChar(15)
+  Transac_CreatedAt           DateTime?       @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text)")) @db.Timestamp(6)
+  Transac_CreatedDerived      Boolean         @default(false)
+  Transac_CreatedAtBackup     DateTime?       @db.Timestamp(6)
+  TypeTransaction             TypeTransaction @relation(fields: [Transac_TypeTrx], references: [Transact_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_Transaction_Type")
+  TypeRead                    TypeRead        @relation(fields: [Transac_TypeRead], references: [Read_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_Transaction_TypeRead")
+
+  @@id([Transac_Date, Transac_UUID])
+  @@index([Transac_Lot, Transac_Date], map: "IX_Transactions_Lot_Date")
+  @@index([Transac_UUID], map: "IX_transactions_Transac_UUID")
+  @@index([Transac_Date], map: "IX_transactions_transac_date")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model TypeCierre {
+  id             Int     @default(autoincrement())
+  id_transac     Int?
+  descripcion    String? @db.VarChar(30)
+  modeloTerminal String? @db.VarChar(10)
+
+  @@ignore
+}
+
+model TypeRead {
+  Read_id          Int            @id
+  Read_descripcion String?        @db.VarChar(150)
+  Transactions     Transactions[]
+}
+
+model TypeTransacionModel {
+  id             Int     @id @default(autoincrement())
+  transacId      Int?
+  descripcion    String? @db.VarChar(30)
+  modeloTerminal String? @db.VarChar(10)
+}
+
+model TypeTransaction {
+  Transact_id          Int            @id
+  Transact_descripcion String?        @db.VarChar(150)
+  Transactions         Transactions[]
+}
+
+model htmls_merchants {
+  id             BigInt    @id @default(autoincrement())
+  UUID           String?   @db.VarChar(250)
+  html_mail      String?
+  html_voucher   String?
+  pdf_base64     String?
+  insertion_date DateTime? @db.Timestamp(6)
+  type_trx       String?   @db.VarChar(50)
+  id_type_trx    String?   @db.VarChar(15)
+}
+
+model sc_log {
+  id            Int       @id @default(autoincrement())
+  inserted_date DateTime? @db.Timestamp(6)
+  username      String    @default("") @db.VarChar(90)
+  application   String    @default("") @db.VarChar(200)
+  creator       String    @default("") @db.VarChar(30)
+  ip_user       String    @default("") @db.VarChar(32)
+  action        String    @default("") @db.VarChar(30)
+  description   String?
+}
+
+model sec_apps {
+  app_name    String  @id @default("") @db.VarChar(150)
+  app_type    String?
+  description String?
+}
+
+model sec_groups {
+  group_id    Int     @id @default(autoincrement())
+  description String? @db.VarChar(255)
+}
+
+model sec_groups_apps {
+  group_id    Int
+  app_name    String  @default("") @db.VarChar(150)
+  priv_access String?
+  priv_insert String?
+  priv_delete String?
+  priv_update String?
+  priv_export String?
+  priv_print  String?
+
+  @@id([app_name, group_id])
+}
+
+model sec_users {
+  login                      String                       @id @default("") @db.VarChar(150)
+  pswd                       String                       @default("") @db.VarChar(150)
+  name                       String?
+  email                      String?
+  usr_active                 String?
+  activation_code            String?
+  priv_admin                 String?
+  usr_fecha_exp_clave        DateTime?                    @db.Timestamp(6)
+  usr_fecha_creacion_clave   DateTime?                    @db.Timestamp(6)
+  usr_intentos               Int?
+  UsuarioAlta                String?                      @db.VarChar(20)
+  FechaAlta                  DateTime?                    @db.Timestamp(6)
+  UsuarioUltAlta             String?                      @db.VarChar(20)
+  FechaHoraUltAct            DateTime?                    @db.Timestamp(6)
+  Authentication_code        Int?
+  validity_code              DateTime?                    @db.Timestamp(6)
+  Intentos_Authe             Int?
+  ValTime                    DateTime?                    @db.Date
+  sec_users_historico_claves sec_users_historico_claves[]
+}
+
+model sec_users_groups {
+  login    String @default("") @db.VarChar(150)
+  group_id Int
+
+  @@id([group_id, login])
+}
+
+model sec_users_historico_claves {
+  id               BigInt    @id @default(autoincrement())
+  fecha            DateTime  @db.Timestamp(6)
+  usu_login        String    @db.VarChar(150)
+  usu_hash_antiguo String?   @db.VarChar(250)
+  sec_users        sec_users @relation(fields: [usu_login], references: [login], onDelete: NoAction, onUpdate: NoAction, map: "FK_UsuarioHistoricoClaves_secUsers")
+}
+
+model tipo_envio {
+  id          Int      @id
+  descripcion String?  @db.VarChar(100)
+  Client      Client[]
+}
