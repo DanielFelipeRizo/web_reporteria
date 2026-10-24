@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { parseDateParam, parsePagination } from '../common/utils/query-params';
 
 export interface VentasFilter {
   modeloPos?: string;
@@ -46,32 +47,32 @@ export class VentasService {
    * Consulta unificada de ventas (Transactions regulares + QR).
    */
   async findAll(filters: VentasFilter) {
-    const page  = Math.max(filters.page  ?? 1, 1);
-    const limit = Math.min(filters.limit ?? 20, 500);
-    const offset = (page - 1) * limit;
+    const { page, limit, offset } = parsePagination(filters.page, filters.limit);
 
-    // ── Construir condiciones WHERE dinámicas ──────────────────────────────
-    const whereClauses: string[] = [];
+    // ── Construir condiciones WHERE dinámicas (valores como parámetros) ────
+    const conditions: Prisma.Sql[] = [];
+    const contains = (value: string) => `%${value}%`;
 
-    if (filters.modeloPos)       whereClauses.push(`modelo_pos = '${this.esc(filters.modeloPos)}'`);
-    if (filters.tipoTransaccion) whereClauses.push(`tipo_trx_id = '${this.esc(filters.tipoTransaccion)}'`);
-    if (filters.tipoTarjeta)     whereClauses.push(`label = '${this.esc(filters.tipoTarjeta)}'`);
-    if (filters.tid)             whereClauses.push(`tid ILIKE '%${this.esc(filters.tid)}%'`);
-    if (filters.mid)             whereClauses.push(`mid ILIKE '%${this.esc(filters.mid)}%'`);
-    if (filters.nombreComercio)  whereClauses.push(`nombre_comercio ILIKE '%${this.esc(filters.nombreComercio)}%'`);
-    if (filters.referencia)      whereClauses.push(`referencia ILIKE '%${this.esc(filters.referencia)}%'`);
-    if (filters.numAprobacion)   whereClauses.push(`num_aprobacion ILIKE '%${this.esc(filters.numAprobacion)}%'`);
-    if (filters.numLote)         whereClauses.push(`lote ILIKE '%${this.esc(filters.numLote)}%'`);
-    if (filters.numTarjeta)      whereClauses.push(`num_tarjeta ILIKE '%${this.esc(filters.numTarjeta)}%'`);
-    if (filters.fechaDesde)      whereClauses.push(`fecha_transaccion >= '${this.esc(filters.fechaDesde)}'::timestamp`);
-    if (filters.fechaHasta)      whereClauses.push(`fecha_transaccion <= '${this.esc(filters.fechaHasta)} 23:59:59'::timestamp`);
+    if (filters.modeloPos)       conditions.push(Prisma.sql`modelo_pos = ${filters.modeloPos}`);
+    if (filters.tipoTransaccion) conditions.push(Prisma.sql`tipo_trx_id = ${filters.tipoTransaccion}`);
+    if (filters.tipoTarjeta)     conditions.push(Prisma.sql`label = ${filters.tipoTarjeta}`);
+    if (filters.tid)             conditions.push(Prisma.sql`tid ILIKE ${contains(filters.tid)}`);
+    if (filters.mid)             conditions.push(Prisma.sql`mid ILIKE ${contains(filters.mid)}`);
+    if (filters.nombreComercio)  conditions.push(Prisma.sql`nombre_comercio ILIKE ${contains(filters.nombreComercio)}`);
+    if (filters.referencia)      conditions.push(Prisma.sql`referencia ILIKE ${contains(filters.referencia)}`);
+    if (filters.numAprobacion)   conditions.push(Prisma.sql`num_aprobacion ILIKE ${contains(filters.numAprobacion)}`);
+    if (filters.numLote)         conditions.push(Prisma.sql`lote ILIKE ${contains(filters.numLote)}`);
+    if (filters.numTarjeta)      conditions.push(Prisma.sql`num_tarjeta ILIKE ${contains(filters.numTarjeta)}`);
+    if (filters.fechaDesde)      conditions.push(Prisma.sql`fecha_transaccion >= ${parseDateParam(filters.fechaDesde, 'fechaDesde')}::date`);
+    // "Hasta" incluye el día completo
+    if (filters.fechaHasta)      conditions.push(Prisma.sql`fecha_transaccion < ${parseDateParam(filters.fechaHasta, 'fechaHasta')}::date + 1`);
 
-    const whereSQL = whereClauses.length > 0
-      ? `WHERE ${whereClauses.join(' AND ')}`
-      : '';
+    const whereSQL = conditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+      : Prisma.empty;
 
-    // ── Query principal con UNION ALL ──────────────────────────────────────
-    const baseQuery = `
+    // ── Query principal con UNION ALL (sin valores del usuario) ────────────
+    const baseQuery = Prisma.raw(`
       SELECT
         TY."Transact_descripcion"     AS tipo_transaccion,
         M."merchant_Name"             AS nombre_comercio,
@@ -124,24 +125,22 @@ export class VentasService {
       FROM "TransactionQr" TQP
       INNER JOIN "Merchants" M  ON TQP."Uuid"        = M."merchant_UUID"
       INNER JOIN "Client" CL    ON CL."Client_UUID"  = TQP."Uuid"
-    `;
+    `);
 
-    // Envolver en CTE para aplicar filtros y paginación de forma limpia
-    const countQuery = Prisma.raw(`
+    // Envolver en subconsulta para aplicar filtros y paginación de forma limpia
+    const countQuery = Prisma.sql`
       SELECT COUNT(*) AS total
       FROM ( ${baseQuery} ) AS ventas
       ${whereSQL}
-    `);
+    `;
 
-    const dataQueryString = `
+    const dataQuery = Prisma.sql`
       SELECT *
       FROM ( ${baseQuery} ) AS ventas
       ${whereSQL}
       ORDER BY fecha_transaccion DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
-
-    const dataQuery = Prisma.raw(dataQueryString);
 
     const [countResult, data] = await Promise.all([
       this.prisma.$queryRaw<{ total: bigint }[]>(countQuery),
@@ -165,7 +164,7 @@ export class VentasService {
   /** Detalle completo de una transacción por UUID */
   async findOne(uuid: string) {
     // Buscar en Transactions primero, luego en TransactionQr
-    const trx = await this.prisma.$queryRaw<any[]>(Prisma.raw(`
+    const trx = await this.prisma.$queryRaw<any[]>`
       SELECT
         T.*,
         M."merchant_Name"      AS nombre_comercio,
@@ -181,16 +180,16 @@ export class VentasService {
       INNER JOIN "Merchants" M  ON T."Transac_UUID" = M."merchant_UUID"
       INNER JOIN "TypeTransaction" TY ON TY."Transact_id" = T."Transac_TypeTrx"
       INNER JOIN "Client" CL    ON CL."Client_UUID" = T."Transac_UUID"
-      WHERE T."Transac_UUID" = '${this.esc(uuid)}'
+      WHERE T."Transac_UUID" = ${uuid}
       LIMIT 1
-    `));
+    `;
 
     const sanitize = (obj: any) => JSON.parse(JSON.stringify(obj, (_, v) => typeof v === 'bigint' ? v.toString() : v));
 
     if (trx.length > 0) return { source: 'transaction', data: sanitize(trx[0]) };
 
     // Buscar en QR
-    const qr = await this.prisma.$queryRaw<any[]>(Prisma.raw(`
+    const qr = await this.prisma.$queryRaw<any[]>`
       SELECT
         TQP.*,
         M."merchant_Name"      AS nombre_comercio,
@@ -202,9 +201,9 @@ export class VentasService {
       FROM "TransactionQr" TQP
       INNER JOIN "Merchants" M  ON TQP."Uuid" = M."merchant_UUID"
       INNER JOIN "Client" CL    ON CL."Client_UUID" = TQP."Uuid"
-      WHERE TQP."Uuid" = '${this.esc(uuid)}'
+      WHERE TQP."Uuid" = ${uuid}
       LIMIT 1
-    `));
+    `;
 
     if (qr.length > 0) return { source: 'qr', data: sanitize(qr[0]) };
 
@@ -222,10 +221,5 @@ export class VentasService {
         insertion_date: true,
       },
     });
-  }
-
-  /** Sanitizar input para prevenir SQL Injection en raw queries */
-  private esc(value: string): string {
-    return value.replace(/'/g, "''").replace(/;/g, '');
   }
 }

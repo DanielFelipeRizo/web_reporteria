@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { parseDateParam, parsePagination } from '../common/utils/query-params';
 
 export interface CierresFilter {
   modeloPos?:      string;
@@ -20,9 +21,7 @@ export class CierresService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(filters: CierresFilter) {
-    const page   = Math.max(filters.page  ?? 1, 1);
-    const limit  = Math.min(filters.limit ?? 20, 500);
-    const skip   = (page - 1) * limit;
+    const { page, limit, offset: skip } = parsePagination(filters.page, filters.limit);
 
     // ── Construir filtros con Prisma ORM (sin SQL raw) ─────────────────────
     const where: Prisma.CierreTransaccionWhereInput = {};
@@ -30,8 +29,12 @@ export class CierresService {
     if (filters.modeloPos)
       where.MODELOPOS = { contains: filters.modeloPos, mode: 'insensitive' };
 
-    if (filters.tipoTransaccion)
-      where.Cierre_TypeTrx = Number(filters.tipoTransaccion);
+    if (filters.tipoTransaccion) {
+      const tipo = Number(filters.tipoTransaccion);
+      if (!Number.isInteger(tipo))
+        throw new BadRequestException('tipoTransaccion debe ser un número entero');
+      where.Cierre_TypeTrx = tipo;
+    }
 
     if (filters.nombreComercio)
       where.Merchant_Name = { contains: filters.nombreComercio, mode: 'insensitive' };
@@ -46,11 +49,16 @@ export class CierresService {
       where.Cierre_Lot = { contains: filters.lote, mode: 'insensitive' };
 
     if (filters.fechaDesde || filters.fechaHasta) {
-      where.Cierre_Date = {};
+      const rango: Prisma.DateTimeFilter = {};
       if (filters.fechaDesde)
-        (where.Cierre_Date as any).gte = new Date(filters.fechaDesde);
-      if (filters.fechaHasta)
-        (where.Cierre_Date as any).lte = new Date(filters.fechaHasta);
+        rango.gte = new Date(parseDateParam(filters.fechaDesde, 'fechaDesde'));
+      if (filters.fechaHasta) {
+        // "Hasta" incluye el día completo: menor que el día siguiente a medianoche
+        const hasta = new Date(parseDateParam(filters.fechaHasta, 'fechaHasta'));
+        hasta.setUTCDate(hasta.getUTCDate() + 1);
+        rango.lt = hasta;
+      }
+      where.Cierre_Date = rango;
     }
 
     // ── Ejecutar conteo y datos en paralelo ────────────────────────────────
