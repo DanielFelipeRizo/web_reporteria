@@ -34,12 +34,12 @@ INSERT INTO "sec_groups_apps"
 SELECT 2, "app_name", 'Y', 'N', 'N', 'N', 'Y', 'Y' FROM "sec_apps" WHERE "app_name" IN ('ventas', 'cierres')
 ON CONFLICT DO NOTHING;
 
--- Contraseñas en SHA-256 hexadecimal, igual que AuthService
+-- Hashes bcrypt (costo 12) de 'admin123' y 'consulta123', el formato de common/utils/password.ts
 INSERT INTO "sec_users"
   ("login", "pswd", "name", "email", "usr_active", "priv_admin", "usr_intentos", "UsuarioAlta", "FechaAlta")
 VALUES
-  ('admin',    encode(sha256(convert_to('admin123', 'UTF8')), 'hex'),    'Administrador',    'admin@demo.test',    'Y', 'Y', 0, 'seed', now()),
-  ('consulta', encode(sha256(convert_to('consulta123', 'UTF8')), 'hex'), 'Usuario Consulta', 'consulta@demo.test', 'Y', 'N', 0, 'seed', now())
+  ('admin',    '$2b$12$xaHs68/bmnU7pk/1AF66jOwkWIQiWNZujUDkcIgcMO8dtI9A7MgrK', 'Administrador',    'admin@demo.test',    'Y', 'Y', 0, 'seed', now()),
+  ('consulta', '$2b$12$yFCzzSjCNY5I10hg85KSTu1QL/RvhkozBi05HlI5tWKKBHKvDQ/ZS', 'Usuario Consulta', 'consulta@demo.test', 'Y', 'N', 0, 'seed', now())
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "sec_users_groups" ("login", "group_id") VALUES

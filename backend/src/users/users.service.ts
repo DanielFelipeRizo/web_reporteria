@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import * as crypto from 'crypto';
+import { hashPassword } from '../common/utils/password';
 
 // Módulos del sistema - definen qué permisos tiene sentido para cada sección
 const SYSTEM_MODULES = [
@@ -91,12 +91,12 @@ export class UsersService {
     });
   }
 
-  /** Crea un nuevo usuario con password hasheado en SHA-256 */
+  /** Crea un nuevo usuario con password hasheado en bcrypt */
   async create(data: { login: string; pswd: string; name?: string; email?: string; priv_admin?: string }) {
     const exists = await this.prisma.sec_users.findUnique({ where: { login: data.login } });
     if (exists) throw new ConflictException(`El usuario '${data.login}' ya existe`);
 
-    const hashedPswd = crypto.createHash('sha256').update(data.pswd).digest('hex');
+    const hashedPswd = await hashPassword(data.pswd);
 
     return this.prisma.sec_users.create({
       data: {
@@ -148,7 +148,7 @@ export class UsersService {
       },
     });
 
-    const newHash = crypto.createHash('sha256').update(newPassword).digest('hex');
+    const newHash = await hashPassword(newPassword);
     return this.prisma.sec_users.update({
       where: { login },
       data: {
@@ -156,6 +156,17 @@ export class UsersService {
         usr_fecha_creacion_clave: new Date(),
         FechaHoraUltAct: new Date(),
       },
+    });
+  }
+
+  /**
+   * Reemplaza un hash heredado por bcrypt tras un login exitoso.
+   * Es la misma contraseña, así que no se registra en el historial ni cambia fechas.
+   */
+  async upgradePasswordHash(login: string, plainPassword: string) {
+    await this.prisma.sec_users.update({
+      where: { login },
+      data: { pswd: await hashPassword(plainPassword) },
     });
   }
 
