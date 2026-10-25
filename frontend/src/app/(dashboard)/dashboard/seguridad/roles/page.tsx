@@ -46,7 +46,7 @@ export default function RolesPage() {
       toast.success(`Rol "${deleteRole.description}" eliminado`);
       setDeleteRole(null);
       loadRoles();
-    } catch { toast.error('Error al eliminar el rol'); }
+    } catch (err: any) { toast.error(err?.response?.data?.message ?? 'Error al eliminar el rol'); }
   };
 
   return (

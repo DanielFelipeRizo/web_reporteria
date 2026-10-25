@@ -140,8 +140,8 @@ export default function RolePermissionsPage() {
     try {
       await rolesService.updatePermissions(roleId, permMapToDto(permMap));
       toast.success('Permisos guardados correctamente');
-    } catch {
-      toast.error('Error al guardar permisos');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? 'Error al guardar permisos');
     } finally { setSaving(false); }
   };
 

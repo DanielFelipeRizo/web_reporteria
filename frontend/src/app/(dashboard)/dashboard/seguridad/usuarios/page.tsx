@@ -9,6 +9,7 @@ import {
 import { usersService } from '@/services/users.service';
 import { rolesService, Role } from '@/services/roles.service';
 import { User } from '@/types/users.types';
+import { useAuthStore } from '@/store/auth.store';
 
 const PAGE_SIZE = 10;
 
@@ -21,6 +22,7 @@ function validatePassword(pw: string): string | null {
 }
 
 export default function UsuariosPage() {
+  const currentLogin          = useAuthStore((s) => s.user?.sub);
   const [users, setUsers]     = useState<User[]>([]);
   const [roles, setRoles]     = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +63,7 @@ export default function UsuariosPage() {
       toast.success(`Usuario ${deleteUser.login} eliminado`);
       setDeleteUser(null);
       loadData();
-    } catch { toast.error('Error al eliminar el usuario'); }
+    } catch (err: any) { toast.error(err?.response?.data?.message ?? 'Error al eliminar el usuario'); }
   };
 
   return (
@@ -119,7 +121,10 @@ export default function UsuariosPage() {
                     <td style={{ padding: '0.65rem 1rem' }}>
                       <div style={{ display: 'flex', gap: '0.4rem' }}>
                         <ActionBtn icon={<Pencil size={13} />} color="var(--accent-light)" title="Editar" onClick={() => setEditUser(u)} />
-                        <ActionBtn icon={<Trash2 size={13} />} color="var(--danger)" title="Eliminar" onClick={() => setDeleteUser(u)} />
+                        {/* Nadie puede eliminar su propio usuario (el backend también lo impide) */}
+                        {u.login !== currentLogin && (
+                          <ActionBtn icon={<Trash2 size={13} />} color="var(--danger)" title="Eliminar" onClick={() => setDeleteUser(u)} />
+                        )}
                       </div>
                     </td>
                     <td style={{ padding: '0.65rem 1rem', color: 'var(--accent-light)', fontWeight: 500 }}>{u.login}</td>
