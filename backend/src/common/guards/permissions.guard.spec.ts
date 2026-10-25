@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { PermissionsGuard } from './permissions.guard';
 import { UsersService } from '../../users/users.service';
 import { buildPermissionsMap } from '../permissions/permissions';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 describe('PermissionsGuard', () => {
   const usersService = { findByLogin: jest.fn() };
@@ -15,8 +16,8 @@ describe('PermissionsGuard', () => {
   };
 
   /** Ejecuta el guard para una ruta que exige `required`; devuelve también el request */
-  async function run(required: string[] | undefined) {
-    reflector.getAllAndOverride.mockReturnValue(required);
+  async function run(required: string[] | undefined, isPublic = false) {
+    reflector.getAllAndOverride.mockImplementation((key: string) => (key === IS_PUBLIC_KEY ? isPublic : required));
     const request: Record<string, unknown> = { user: { sub: 'gestor' } };
     const context = {
       getHandler: () => null,
@@ -47,6 +48,11 @@ describe('PermissionsGuard', () => {
     usersService.findByLogin.mockResolvedValue({ ...gestor, isAdmin: true });
 
     await expect(run(['seguridad.usuarios:delete'])).resolves.toMatchObject({ result: true });
+  });
+
+  it('deja pasar las rutas públicas sin consultar la BD', async () => {
+    await expect(run(undefined, true)).resolves.toMatchObject({ result: true });
+    expect(usersService.findByLogin).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { VoucherResponse } from './ventas.service';
 
 export interface CierreRow {
   Cierre_id: bigint | number;
@@ -58,8 +59,8 @@ export const cierresService = {
     return data;
   },
 
-  getVoucher: async (uuid: string) => {
-    const { data } = await api.get(`/cierres/${uuid}/voucher`);
+  getVoucher: async (uuid: string): Promise<VoucherResponse> => {
+    const { data } = await api.get<VoucherResponse>(`/cierres/${uuid}/voucher`);
     return data;
   },
 };

@@ -31,7 +31,18 @@ export interface AuditResponse {
   };
 }
 
+export interface AuditUser {
+  login: string;
+  name:  string | null;
+}
+
 export const auditService = {
+  /** Usuarios con registros de auditoría (incluye eliminados), para el filtro */
+  findUsers: async (): Promise<AuditUser[]> => {
+    const { data } = await api.get<AuditUser[]>('/audit/users');
+    return data;
+  },
+
   findAll: async (filters: AuditFilters): Promise<AuditResponse> => {
     // Limpiar campos vacíos
     const params = Object.fromEntries(

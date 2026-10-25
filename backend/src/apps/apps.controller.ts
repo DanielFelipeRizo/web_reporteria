@@ -2,10 +2,11 @@ import { Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common'
 import { AppsService } from './apps.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { RequirePermission } from '../common/decorators/require-permission.decorator';
 
 @ApiTags('apps')
 @ApiBearerAuth()
-@UseGuards(AdminGuard)
+@RequirePermission('seguridad.aplicaciones:access')
 @Controller('apps')
 export class AppsController {
   constructor(private appsService: AppsService) {}
@@ -18,11 +19,14 @@ export class AppsController {
   @ApiOperation({ summary: 'Ver los módulos del nuevo sistema (fuente de verdad)' })
   findSystemModules() { return this.appsService.findSystemModules(); }
 
+  // Modificar el registro de módulos sigue siendo solo para administradores
   @Post('sync')
-  @ApiOperation({ summary: 'Sincronizar módulos del sistema en sec_apps' })
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Sincronizar módulos del sistema en sec_apps (solo administradores)' })
   sync() { return this.appsService.syncModules(); }
 
   @Delete(':name')
-  @ApiOperation({ summary: 'Eliminar una app/módulo registrado' })
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Eliminar una app/módulo registrado (solo administradores)' })
   remove(@Param('name') name: string) { return this.appsService.remove(name); }
 }

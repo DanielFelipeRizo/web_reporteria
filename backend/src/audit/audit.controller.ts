@@ -1,14 +1,18 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { AdminGuard } from '../common/guards/admin.guard';
+import { RequirePermission } from '../common/decorators/require-permission.decorator';
 
 @ApiTags('audit')
 @ApiBearerAuth()
-@UseGuards(AdminGuard)
+@RequirePermission('seguridad.auditoria:access')
 @Controller('audit')
 export class AuditController {
   constructor(private auditService: AuditService) {}
+
+  @Get('users')
+  @ApiOperation({ summary: 'Usuarios con registros de auditoría (para el filtro), incluidos los eliminados' })
+  findUsers() { return this.auditService.findUsers(); }
 
   @Get()
   @ApiOperation({ summary: 'Consultar logs de auditoría con filtros' })

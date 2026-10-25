@@ -7,6 +7,22 @@ import { parseDateParam, parsePagination } from '../common/utils/query-params';
 export class AuditService {
   constructor(private prisma: PrismaService) {}
 
+  /** Logins que aparecen en sc_log, con su nombre si el usuario todavía existe */
+  async findUsers() {
+    const rows = await this.prisma.sc_log.findMany({
+      distinct: ['username'],
+      select: { username: true },
+      orderBy: { username: 'asc' },
+    });
+    const logins = rows.map((row) => row.username);
+    const users = await this.prisma.sec_users.findMany({
+      where: { login: { in: logins } },
+      select: { login: true, name: true },
+    });
+
+    return logins.map((login) => ({ login, name: users.find((u) => u.login === login)?.name ?? null }));
+  }
+
   async findAll(filters: {
     username?: string;
     application?: string;

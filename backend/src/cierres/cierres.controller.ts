@@ -8,9 +8,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { RequirePermission } from '../common/decorators/require-permission.decorator';
 
 @ApiTags('cierres')
 @ApiBearerAuth()
+@RequirePermission('cierres:access')
 @Controller('cierres')
 export class CierresController {
   constructor(private cierresService: CierresService) {}

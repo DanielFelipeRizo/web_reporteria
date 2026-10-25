@@ -8,11 +8,12 @@ import {
 import { Reflector } from '@nestjs/core';
 import { UsersService } from '../../users/users.service';
 import { REQUIRED_PERMISSIONS_KEY } from '../decorators/require-permission.decorator';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 /**
- * Verifica los permisos de @RequirePermission con datos frescos de la BD:
- * el token puede traer permisos de hasta una hora atrás, o de un usuario
- * que ya fue desactivado o eliminado.
+ * Guard global, corre después de JwtAuthGuard. Verifica los permisos de
+ * @RequirePermission con datos frescos de la BD: el token puede traer permisos
+ * de hasta una hora atrás, o de un usuario que ya fue desactivado o eliminado.
  */
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -22,6 +23,12 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
     const required = this.reflector.getAllAndOverride<string[]>(REQUIRED_PERMISSIONS_KEY, [
       context.getHandler(),
       context.getClass(),

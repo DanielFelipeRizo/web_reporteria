@@ -1,26 +1,30 @@
 import { useEffect, useState } from 'react';
 import { Download, Loader2, X } from 'lucide-react';
 import { ventasService, VoucherResponse } from '@/services/ventas.service';
+import { cierresService } from '@/services/cierres.service';
 import { toast } from 'sonner';
 
 interface VoucherModalProps {
   uuid: string;
   onClose: () => void;
+  /** Módulo al que se pide el voucher: cada uno exige su propio permiso */
+  source?: 'ventas' | 'cierres';
 }
 
-export default function VoucherModal({ uuid, onClose }: VoucherModalProps) {
+export default function VoucherModal({ uuid, onClose, source = 'ventas' }: VoucherModalProps) {
   const [loading, setLoading] = useState(true);
   const [voucher, setVoucher] = useState<VoucherResponse | null>(null);
 
   useEffect(() => {
-    ventasService.getVoucher(uuid)
+    const service = source === 'cierres' ? cierresService : ventasService;
+    service.getVoucher(uuid)
       .then(data => {
         if (!data) toast.error('No se encontró el voucher para esta transacción.');
         setVoucher(data);
       })
       .catch(() => toast.error('Error al cargar el voucher'))
       .finally(() => setLoading(false));
-  }, [uuid]);
+  }, [uuid, source]);
 
   const handleDownload = () => {
     if (!voucher?.pdf_base64) {

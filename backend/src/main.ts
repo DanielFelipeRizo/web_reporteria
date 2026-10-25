@@ -3,6 +3,8 @@ import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { PermissionsGuard } from './common/guards/permissions.guard';
+import { UsersService } from './users/users.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { PrismaService } from './prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -16,8 +18,12 @@ async function bootstrap() {
   const jwtService = app.get(JwtService);
   const prismaService = app.get(PrismaService);
 
-  // El JWT Guard actúa como portero en TODOS los endpoints
-  app.useGlobalGuards(new JwtAuthGuard(jwtService, reflector));
+  // El JWT Guard actúa como portero en TODOS los endpoints; después, el de
+  // permisos confirma en la BD que el usuario sigue activo y aplica @RequirePermission
+  app.useGlobalGuards(
+    new JwtAuthGuard(jwtService, reflector),
+    new PermissionsGuard(reflector, app.get(UsersService)),
+  );
   // El Audit Interceptor registra en sc_log TODA petición autenticada
   app.useGlobalInterceptors(new AuditInterceptor(prismaService));
   // Valida los cuerpos tipados con DTOs (responde 400 en vez de 500)

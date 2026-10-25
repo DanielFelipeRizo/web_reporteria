@@ -8,9 +8,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { RequirePermission } from '../common/decorators/require-permission.decorator';
 
 @ApiTags('ventas')
 @ApiBearerAuth()
+@RequirePermission('ventas:access')
 @Controller('ventas')
 export class VentasController {
   constructor(private ventasService: VentasService) {}
@@ -55,7 +57,9 @@ export class VentasController {
     });
   }
 
+  // Catálogo compartido: también lo usa el filtro de la pantalla de cierres
   @Get('options/modelos')
+  @RequirePermission('ventas:access', 'cierres:access')
   @ApiOperation({ summary: 'Obtener modelos de terminal' })
   getModelos() {
     return this.ventasService.getModelos();

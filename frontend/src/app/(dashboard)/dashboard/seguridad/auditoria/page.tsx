@@ -3,9 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Search, Eraser, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
-import { auditService, AuditLog, AuditFilters } from '@/services/audit.service';
-import { usersService } from '@/services/users.service';
-import { User } from '@/types/users.types';
+import { auditService, AuditLog, AuditFilters, AuditUser } from '@/services/audit.service';
 
 const PAGE_SIZE = 15;
 
@@ -24,7 +22,7 @@ const MODULES = [
 
 export default function AuditoriaPage() {
   const [logs, setLogs]             = useState<AuditLog[]>([]);
-  const [users, setUsers]           = useState<User[]>([]);
+  const [users, setUsers]           = useState<AuditUser[]>([]);
   const [loading, setLoading]       = useState(false);
   const [loadingUsers, setLdUsers]  = useState(true);
 
@@ -36,8 +34,9 @@ export default function AuditoriaPage() {
   });
 
   // ── Cargar usuarios para el combo ──────────────────────────────────────────
+  // Endpoint propio de auditoría: no exige permiso sobre Usuarios
   useEffect(() => {
-    usersService.findAll()
+    auditService.findUsers()
       .then(u => setUsers(u))
       .catch(() => toast.error('Error al cargar lista de usuarios'))
       .finally(() => setLdUsers(false));

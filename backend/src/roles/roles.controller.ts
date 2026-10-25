@@ -1,10 +1,9 @@
 import {
   Body, Controller, Delete, Get, Param, ParseIntPipe,
-  Patch, Post, Put, UseGuards,
+  Patch, Post, Put,
 } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { RequirePermission } from '../common/decorators/require-permission.decorator';
 import { CurrentActor } from '../common/decorators/current-actor.decorator';
 import type { Actor } from '../common/permissions/permissions';
@@ -12,7 +11,6 @@ import { SaveRoleDto, UpdatePermissionsDto } from './dto/role.dto';
 
 @ApiTags('roles')
 @ApiBearerAuth()
-@UseGuards(PermissionsGuard)
 @Controller('roles')
 export class RolesController {
   constructor(private rolesService: RolesService) {}

@@ -261,7 +261,7 @@ export default function CierresPage() {
         )}
       </div>
 
-      {openVoucher && <VoucherModal uuid={openVoucher} onClose={() => setOpenVoucher(null)} />}
+      {openVoucher && <VoucherModal uuid={openVoucher} source="cierres" onClose={() => setOpenVoucher(null)} />}
       
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
