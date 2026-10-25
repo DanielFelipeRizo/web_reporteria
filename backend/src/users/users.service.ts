@@ -2,41 +2,54 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { hashPassword } from '../common/utils/password';
-
-// Módulos del sistema - definen qué permisos tiene sentido para cada sección
-const SYSTEM_MODULES = [
-  { name: 'ventas',                  privs: ['access','export','print'] },
-  { name: 'cierres',                 privs: ['access','export','print'] },
-  { name: 'reservas',                privs: ['access','export'] },
-  { name: 'seguridad.usuarios',      privs: ['access','insert','update','delete'] },
-  { name: 'seguridad.roles',         privs: ['access','insert','update','delete'] },
-  { name: 'seguridad.aplicaciones',  privs: ['access'] },
-  { name: 'seguridad.auditoria',     privs: ['access','export'] },
-];
+import {
+  Actor, ADMIN_GROUP_ID, buildPermissionsMap, missingPrivileges,
+} from '../common/permissions/permissions';
 
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  /** Construye el mapa de permisos estructurado para el JWT */
-  private buildPermissionsMap(groupApps: any[]): Record<string, Record<string, boolean>> {
-    const permissions: Record<string, Record<string, boolean>> = {};
+  /**
+   * Un no-administrador solo gestiona usuarios que no tengan más permisos que él;
+   * si no, podría por ejemplo cambiarle la contraseña a un administrador y entrar como él.
+   */
+  private async assertCanManage(actor: Actor, login: string) {
+    if (actor.isAdmin) return;
 
-    for (const mod of SYSTEM_MODULES) {
-      const appPerms = groupApps.find(ga => ga.app_name === mod.name);
-      const permObj: Record<string, boolean> = {};
+    const target = await this.findByLogin(login);
+    if (!target) throw new NotFoundException(`Usuario '${login}' no encontrado`);
 
-      for (const priv of mod.privs) {
-        // mapeo: access→priv_access, insert→priv_insert, etc.
-        const field = `priv_${priv}` as keyof typeof appPerms;
-        permObj[priv] = appPerms ? (appPerms[field] === 'Y') : false;
-      }
-      permissions[mod.name] = permObj;
+    if (target.isAdmin || missingPrivileges(target.permissions, actor.permissions).length > 0) {
+      throw new ForbiddenException(`No puedes gestionar a '${login}' porque tiene permisos que tú no tienes`);
     }
-    return permissions;
+  }
+
+  /** Un no-administrador solo asigna roles cuyos permisos él también tiene */
+  private async assertCanAssignRoles(actor: Actor, login: string, groupIds: number[]) {
+    if (actor.isAdmin) return;
+
+    await this.assertCanManage(actor, login);
+
+    // Con permiso de crear (sin editar) solo puede dar roles al usuario recién creado
+    const currentRoles = await this.prisma.sec_users_groups.count({ where: { login } });
+    if (currentRoles > 0 && !actor.permissions['seguridad.usuarios']?.update) {
+      throw new ForbiddenException('Necesitas permiso para editar usuarios para cambiar sus roles');
+    }
+
+    if (groupIds.includes(ADMIN_GROUP_ID)) {
+      throw new ForbiddenException('Solo un administrador puede asignar el rol Administrator');
+    }
+
+    const groupApps = await this.prisma.sec_groups_apps.findMany({ where: { group_id: { in: groupIds } } });
+    const missing = missingPrivileges(buildPermissionsMap(groupApps), actor.permissions);
+    if (missing.length > 0) {
+      throw new ForbiddenException(`No puedes asignar roles con permisos que no tienes: ${missing.join(', ')}`);
+    }
   }
 
   /** Busca usuario por login y devuelve perfil completo con permisos estructurados */
@@ -52,8 +65,8 @@ export class UsersService {
     });
 
     // Admin = pertenece al grupo "Administrator" (group_id = 1)
-    const isAdmin = groupIds.includes(1);
-    const permissions = this.buildPermissionsMap(groupApps);
+    const isAdmin = groupIds.includes(ADMIN_GROUP_ID);
+    const permissions = buildPermissionsMap(groupApps);
 
     return { ...user, groupIds, isAdmin, permissions };
   }
@@ -113,9 +126,10 @@ export class UsersService {
   }
 
   /** Edita datos del usuario (sin cambiar password) */
-  async update(login: string, data: { name?: string; email?: string; usr_active?: string }) {
+  async update(login: string, data: { name?: string; email?: string; usr_active?: string }, actor: Actor) {
     const user = await this.prisma.sec_users.findUnique({ where: { login } });
     if (!user) throw new NotFoundException(`Usuario '${login}' no encontrado`);
+    await this.assertCanManage(actor, login);
 
     return this.prisma.sec_users.update({
       where: { login },
@@ -124,14 +138,23 @@ export class UsersService {
   }
 
   /** Elimina un usuario */
-  async remove(login: string) {
+  async remove(login: string, actor: Actor) {
+    if (login === actor.login) throw new ForbiddenException('No puedes eliminar tu propio usuario');
+
     const user = await this.prisma.sec_users.findUnique({ where: { login } });
     if (!user) throw new NotFoundException(`Usuario '${login}' no encontrado`);
+    await this.assertCanManage(actor, login);
 
     // Eliminar relaciones primero
     await this.prisma.sec_users_groups.deleteMany({ where: { login } });
     await this.prisma.sec_users_historico_claves.deleteMany({ where: { usu_login: login } });
     return this.prisma.sec_users.delete({ where: { login } });
+  }
+
+  /** Un gestor de usuarios le asigna una contraseña nueva a otro usuario */
+  async resetPassword(login: string, newPassword: string, actor: Actor) {
+    await this.assertCanManage(actor, login);
+    return this.changePassword(login, newPassword);
   }
 
   /** Cambia el password de un usuario (guarda historial) */
@@ -171,9 +194,10 @@ export class UsersService {
   }
 
   /** Asigna/reemplaza los roles de un usuario */
-  async assignRoles(login: string, groupIds: number[]) {
+  async assignRoles(login: string, groupIds: number[], actor: Actor) {
     const user = await this.prisma.sec_users.findUnique({ where: { login } });
     if (!user) throw new NotFoundException(`Usuario '${login}' no encontrado`);
+    await this.assertCanAssignRoles(actor, login, groupIds);
 
     await this.prisma.sec_users_groups.deleteMany({ where: { login } });
 

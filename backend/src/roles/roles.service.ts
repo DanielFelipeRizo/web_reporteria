@@ -1,9 +1,27 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  Actor, ADMIN_GROUP_ID, buildPermissionsMap, missingPrivileges,
+} from '../common/permissions/permissions';
 
 @Injectable()
 export class RolesService {
   constructor(private prisma: PrismaService) {}
+
+  /** Un no-administrador solo modifica roles que no tengan más permisos que él */
+  private async assertCanManageRole(actor: Actor, id: number) {
+    if (actor.isAdmin) return;
+
+    if (id === ADMIN_GROUP_ID) {
+      throw new ForbiddenException('Solo un administrador puede modificar el rol Administrator');
+    }
+
+    const groupApps = await this.prisma.sec_groups_apps.findMany({ where: { group_id: id } });
+    const missing = missingPrivileges(buildPermissionsMap(groupApps), actor.permissions);
+    if (missing.length > 0) {
+      throw new ForbiddenException(`No puedes modificar este rol porque tiene permisos que tú no tienes: ${missing.join(', ')}`);
+    }
+  }
 
   findAll() {
     return this.prisma.sec_groups.findMany({ orderBy: { group_id: 'asc' } });
@@ -19,13 +37,15 @@ export class RolesService {
     return this.prisma.sec_groups.create({ data: { description } });
   }
 
-  async update(id: number, description: string) {
+  async update(id: number, description: string, actor: Actor) {
     await this.findOne(id);
+    await this.assertCanManageRole(actor, id);
     return this.prisma.sec_groups.update({ where: { group_id: id }, data: { description } });
   }
 
-  async remove(id: number) {
+  async remove(id: number, actor: Actor) {
     await this.findOne(id);
+    await this.assertCanManageRole(actor, id);
     await this.prisma.sec_groups_apps.deleteMany({ where: { group_id: id } });
     await this.prisma.sec_users_groups.deleteMany({ where: { group_id: id } });
     return this.prisma.sec_groups.delete({ where: { group_id: id } });
@@ -47,8 +67,23 @@ export class RolesService {
       priv_export?: string;
       priv_print?: string;
     }[],
+    actor: Actor,
   ) {
     await this.findOne(id);
+    await this.assertCanManageRole(actor, id);
+
+    if (!actor.isAdmin) {
+      // Resultado final del upsert: las filas actuales con los valores enviados encima
+      const current = await this.prisma.sec_groups_apps.findMany({ where: { group_id: id } });
+      const finalRows = [
+        ...current.map((row) => ({ ...row, ...permissions.find((p) => p.app_name === row.app_name) })),
+        ...permissions.filter((p) => !current.some((row) => row.app_name === p.app_name)),
+      ];
+      const missing = missingPrivileges(buildPermissionsMap(finalRows), actor.permissions);
+      if (missing.length > 0) {
+        throw new ForbiddenException(`No puedes otorgar permisos que no tienes: ${missing.join(', ')}`);
+      }
+    }
 
     // Usar upsert por cada permiso
     for (const perm of permissions) {
