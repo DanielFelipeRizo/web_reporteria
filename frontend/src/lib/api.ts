@@ -16,10 +16,13 @@ api.interceptors.request.use((config) => {
 });
 
 // ── Interceptor de RESPONSE: si el token expiró, redirige al login ──────────
+// En estos endpoints un 401 significa "credenciales inválidas", no sesión vencida
+const LOGIN_URLS = ['/auth/login', '/auth/change-expired-password'];
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !LOGIN_URLS.includes(error.config?.url)) {
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
       window.location.href = '/login';

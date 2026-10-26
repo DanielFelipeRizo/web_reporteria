@@ -10,16 +10,9 @@ import { usersService } from '@/services/users.service';
 import { rolesService, Role } from '@/services/roles.service';
 import { User } from '@/types/users.types';
 import { useAuthStore } from '@/store/auth.store';
+import { validatePassword } from '@/lib/password';
 
 const PAGE_SIZE = 10;
-
-function validatePassword(pw: string): string | null {
-  if (pw.length < 8)                return 'Mínimo 8 caracteres';
-  if (!/[A-Z]/.test(pw))           return 'Al menos una mayúscula';
-  if (!/[0-9]/.test(pw))           return 'Al menos un número';
-  if (!/[$@!%*,.<>+&%?]/.test(pw)) return 'Al menos un carácter especial';
-  return null;
-}
 
 export default function UsuariosPage() {
   const currentLogin          = useAuthStore((s) => s.user?.sub);
@@ -250,7 +243,7 @@ function CreateUserModal({ roles, onClose, onSuccess }: { roles: Role[]; onClose
     try {
       await usersService.create({ login: form.login, pswd: form.pswd, name: form.name, email: form.email });
       await usersService.assignRoles(form.login, [parseInt(form.groupId)]);
-      toast.success(`Usuario "${form.login}" creado`);
+      toast.success(`Usuario "${form.login}" creado. Deberá cambiar la contraseña al iniciar sesión`);
       onSuccess();
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? 'Error al crear el usuario');
@@ -351,7 +344,9 @@ function EditUserModal({ user, roles, onClose, onSuccess }: { user: User; roles:
         await usersService.assignRoles(user.login, [parseInt(form.newGroupId)]);
       }
 
-      toast.success(`Usuario "${user.login}" actualizado`);
+      toast.success(form.changePass === 'Y'
+        ? `Usuario "${user.login}" actualizado. Deberá cambiar la contraseña al iniciar sesión`
+        : `Usuario "${user.login}" actualizado`);
       onSuccess();
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? 'Error al actualizar el usuario');
@@ -380,13 +375,16 @@ function EditUserModal({ user, roles, onClose, onSuccess }: { user: User; roles:
           <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </FormField>
 
-        <FormField label="Cambiar contraseña">
-          <select className="input" value={form.changePass} onChange={(e) => setForm({ ...form, changePass: e.target.value })}>
-            <option value="N">No</option><option value="Y">Sí</option>
-          </select>
-        </FormField>
+        {/* La propia contraseña se cambia desde la barra superior (pide la actual) */}
+        {!isSelf && (
+          <FormField label="Cambiar contraseña">
+            <select className="input" value={form.changePass} onChange={(e) => setForm({ ...form, changePass: e.target.value })}>
+              <option value="N">No</option><option value="Y">Sí</option>
+            </select>
+          </FormField>
+        )}
 
-        {form.changePass === 'Y' && <>
+        {!isSelf && form.changePass === 'Y' && <>
           <FormField label="Nueva contraseña *" error={errors.newPass}>
             <PasswordInput value={form.newPass} show={showPw} onToggle={() => setShowPw(!showPw)} onChange={(v) => setForm({ ...form, newPass: v })} placeholder="Nueva contraseña" />
           </FormField>
@@ -410,7 +408,8 @@ function EditUserModal({ user, roles, onClose, onSuccess }: { user: User; roles:
 
         {isSelf ? (
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-            No puedes desactivarte ni cambiar tus propios roles. Pídeselo a otro usuario con permiso.
+            No puedes desactivarte ni cambiar tus propios roles: pídeselo a otro usuario con permiso.
+            Tu contraseña la cambias con el botón de la llave en la barra superior.
           </p>
         ) : (
           <FormField label="Actualizar tipo de usuario">

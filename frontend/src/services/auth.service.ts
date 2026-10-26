@@ -16,6 +16,12 @@ export const authService = {
     return data;
   },
 
+  /** Cambia una contraseña vencida desde el login y abre sesión (responde igual que login) */
+  changeExpiredPassword: async (login: string, pswd: string, newPassword: string): Promise<LoginResponse> => {
+    const { data } = await api.post<LoginResponse>('/auth/change-expired-password', { login, pswd, newPassword });
+    return data;
+  },
+
   changePassword: async (currentPassword: string, newPassword: string) => {
     const { data } = await api.post('/auth/change-password', {
       currentPassword,

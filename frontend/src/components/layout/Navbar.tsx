@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
-import { Bell } from 'lucide-react';
+import { Bell, KeyRound } from 'lucide-react';
+import ChangePasswordModal from './ChangePasswordModal';
 
 // Mapa de rutas → títulos legibles
 const ROUTE_TITLES: Record<string, string> = {
@@ -19,6 +21,7 @@ const ROUTE_TITLES: Record<string, string> = {
 export default function Navbar() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
+  const [showChangePw, setShowChangePw] = useState(false);
 
   const title = ROUTE_TITLES[pathname] ?? 'Web Reportería';
 
@@ -54,6 +57,15 @@ export default function Navbar() {
           <Bell size={16} />
         </button>
 
+        <button title="Cambiar contraseña" onClick={() => setShowChangePw(true)} style={{
+          background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+          borderRadius: 8, padding: '0.4rem', cursor: 'pointer',
+          color: 'var(--text-muted)', display: 'flex', alignItems: 'center',
+          transition: 'color 0.2s',
+        }}>
+          <KeyRound size={16} />
+        </button>
+
         {/* Chip del usuario */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: '0.5rem',
@@ -77,6 +89,8 @@ export default function Navbar() {
           )}
         </div>
       </div>
+
+      {showChangePw && <ChangePasswordModal onClose={() => setShowChangePw(false)} />}
     </header>
   );
 }

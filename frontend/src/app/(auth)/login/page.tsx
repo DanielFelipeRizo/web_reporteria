@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { Lock, User, Eye, EyeOff, Loader2, Zap } from 'lucide-react';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/store/auth.store';
+import { validatePassword } from '@/lib/password';
+import { LoginResponse } from '@/types/auth.types';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,6 +18,17 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Contraseña vencida (la asignó otro usuario): se pide una nueva antes de entrar
+  const [mustChange, setMustChange]   = useState(false);
+  const [newPass, setNewPass]         = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+
+  const startSession = (res: LoginResponse) => {
+    setSession(res.access_token, res.user);
+    toast.success(`Bienvenido, ${res.user.username}`);
+    router.push('/dashboard');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!login.trim() || !pswd.trim()) {
@@ -25,16 +38,40 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const res = await authService.login(login.trim(), pswd);
-      setSession(res.access_token, res.user);
-      toast.success(`Bienvenido, ${res.user.username}`);
-      router.push('/dashboard');
+      startSession(await authService.login(login.trim(), pswd));
     } catch (err: any) {
+      if (err?.response?.data?.code === 'PASSWORD_CHANGE_REQUIRED') {
+        setMustChange(true);
+        toast.info(err.response.data.message);
+        return;
+      }
       const msg = err?.response?.data?.message ?? 'Error al iniciar sesión';
       toast.error(msg);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleChangeExpired = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const pwErr = validatePassword(newPass);
+    if (pwErr) { toast.error(pwErr); return; }
+    if (newPass !== confirmPass) { toast.error('Las contraseñas no coinciden'); return; }
+
+    setLoading(true);
+    try {
+      startSession(await authService.changeExpiredPassword(login.trim(), pswd, newPass));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? 'Error al cambiar la contraseña');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const backToLogin = () => {
+    setMustChange(false);
+    setNewPass('');
+    setConfirmPass('');
   };
 
   return (
@@ -86,7 +123,34 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Formulario */}
+        {mustChange ? (
+          <form onSubmit={handleChangeExpired} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+              Tu contraseña fue asignada por otro usuario. Elige una nueva para <strong>{login.trim()}</strong>.
+            </p>
+            <div>
+              <label className="label" htmlFor="newPass">Nueva contraseña</label>
+              <input id="newPass" type={showPass ? 'text' : 'password'} className="input" autoFocus
+                autoComplete="new-password" value={newPass} onChange={(e) => setNewPass(e.target.value)} />
+            </div>
+            <div>
+              <label className="label" htmlFor="confirmPass">Confirmar contraseña</label>
+              <input id="confirmPass" type={showPass ? 'text' : 'password'} className="input"
+                autoComplete="new-password" value={confirmPass} onChange={(e) => setConfirmPass(e.target.value)} />
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+              Mínimo 8 caracteres, con una mayúscula, un número y un carácter especial.
+            </p>
+            <button type="submit" className="btn-primary" disabled={loading}
+              style={{ width: '100%', justifyContent: 'center', padding: '0.8rem' }}>
+              {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Cambiar contraseña y entrar'}
+            </button>
+            <button type="button" className="btn-secondary" onClick={backToLogin}
+              style={{ width: '100%', justifyContent: 'center' }}>
+              Volver
+            </button>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
           {/* Usuario */}
           <div>
@@ -165,6 +229,7 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+        )}
 
         {/* Footer */}
         <p style={{

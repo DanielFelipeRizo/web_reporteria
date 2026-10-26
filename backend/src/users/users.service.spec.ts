@@ -24,6 +24,7 @@ describe('UsersService', () => {
       findUnique: jest.fn(({ where }) => (where.login in USER_GROUPS ? { login: where.login, pswd: 'x', usr_active: 'Y' } : null)),
       update: jest.fn(),
       delete: jest.fn(),
+      create: jest.fn(),
     },
     sec_users_groups: {
       findMany: jest.fn(({ where }) => USER_GROUPS[where.login].map((group_id) => ({ login: where.login, group_id }))),
@@ -62,6 +63,34 @@ describe('UsersService', () => {
     it.each(['admin', 'consulta'])('un gestor no puede eliminar a %s, que tiene más permisos', async (login) => {
       await expect(service.remove(login, await actor('gestor'))).rejects.toThrow(ForbiddenException);
       expect(prisma.sec_users.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('contraseñas asignadas por otro usuario', () => {
+    const datosGuardados = (mock: jest.Mock) => mock.mock.calls.at(-1)[0].data;
+
+    it('la clave inicial de un usuario nuevo queda vencida', async () => {
+      await service.create({ login: 'otro', pswd: 'Clave-Inicial1' });
+
+      expect(datosGuardados(prisma.sec_users.create).usr_fecha_exp_clave).toBeInstanceOf(Date);
+    });
+
+    it('la clave asignada por un gestor queda vencida', async () => {
+      await service.resetPassword('vendedor', 'Clave-Temporal1', await actor('gestor'));
+
+      expect(datosGuardados(prisma.sec_users.update).usr_fecha_exp_clave).toBeInstanceOf(Date);
+    });
+
+    it('cambiarse la clave uno mismo la deja vigente', async () => {
+      await service.changePassword('vendedor', 'Clave-Propia1', { expire: false });
+
+      expect(datosGuardados(prisma.sec_users.update).usr_fecha_exp_clave).toBeNull();
+    });
+
+    it('nadie puede asignarse su propia clave por esta vía (no pide la actual)', async () => {
+      await expect(service.resetPassword('admin', 'Clave-Nueva1', await actor('admin')))
+        .rejects.toThrow('Para cambiar tu propia contraseña');
+      expect(prisma.sec_users.update).not.toHaveBeenCalled();
     });
   });
 

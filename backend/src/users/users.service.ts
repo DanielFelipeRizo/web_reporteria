@@ -110,6 +110,7 @@ export class UsersService {
     if (exists) throw new ConflictException(`El usuario '${data.login}' ya existe`);
 
     const hashedPswd = await hashPassword(data.pswd);
+    const now = new Date();
 
     return this.prisma.sec_users.create({
       data: {
@@ -119,8 +120,11 @@ export class UsersService {
         email: data.email,
         usr_active: 'Y',
         priv_admin: data.priv_admin ?? 'N',
-        FechaAlta: new Date(),
+        FechaAlta: now,
         UsuarioAlta: 'system',
+        usr_fecha_creacion_clave: now,
+        // La clave inicial la eligió otro usuario: se debe cambiar en el primer login
+        usr_fecha_exp_clave: now,
       },
     });
   }
@@ -155,14 +159,24 @@ export class UsersService {
     return this.prisma.sec_users.delete({ where: { login } });
   }
 
-  /** Un gestor de usuarios le asigna una contraseña nueva a otro usuario */
+  /**
+   * Un gestor de usuarios le asigna una contraseña nueva a otro usuario,
+   * que deberá cambiarla en su siguiente login.
+   */
   async resetPassword(login: string, newPassword: string, actor: Actor) {
+    // Por esta vía no se pide la contraseña actual
+    if (login === actor.login) {
+      throw new ForbiddenException('Para cambiar tu propia contraseña usa la opción "Cambiar contraseña"');
+    }
     await this.assertCanManage(actor, login);
-    return this.changePassword(login, newPassword);
+    return this.changePassword(login, newPassword, { expire: true });
   }
 
-  /** Cambia el password de un usuario (guarda historial) */
-  async changePassword(login: string, newPassword: string) {
+  /**
+   * Cambia el password de un usuario (guarda historial).
+   * expire = true deja la clave vencida para obligar a cambiarla en el siguiente login.
+   */
+  async changePassword(login: string, newPassword: string, { expire }: { expire: boolean }) {
     const user = await this.prisma.sec_users.findUnique({ where: { login } });
     if (!user) throw new NotFoundException(`Usuario '${login}' no encontrado`);
 
@@ -181,6 +195,7 @@ export class UsersService {
       data: {
         pswd: newHash,
         usr_fecha_creacion_clave: new Date(),
+        usr_fecha_exp_clave: expire ? new Date() : null,
         FechaHoraUltAct: new Date(),
       },
     });
