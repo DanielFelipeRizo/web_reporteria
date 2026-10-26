@@ -16,6 +16,11 @@ export class RolesService {
       throw new ForbiddenException('Solo un administrador puede modificar el rol Administrator');
     }
 
+    // Podría quitarse a sí mismo el permiso de gestionar roles
+    if (actor.groupIds.includes(id)) {
+      throw new ForbiddenException('No puedes modificar un rol que tienes asignado');
+    }
+
     const groupApps = await this.prisma.sec_groups_apps.findMany({ where: { group_id: id } });
     const missing = missingPrivileges(buildPermissionsMap(groupApps), actor.permissions);
     if (missing.length > 0) {
@@ -44,6 +49,9 @@ export class RolesService {
   }
 
   async remove(id: number, actor: Actor) {
+    // Sin este rol nadie sería administrador (isAdmin depende de pertenecer a él)
+    if (id === ADMIN_GROUP_ID) throw new ForbiddenException('El rol Administrator no se puede eliminar');
+
     await this.findOne(id);
     await this.assertCanManageRole(actor, id);
     await this.prisma.sec_groups_apps.deleteMany({ where: { group_id: id } });

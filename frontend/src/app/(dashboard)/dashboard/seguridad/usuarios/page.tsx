@@ -301,6 +301,8 @@ function CreateUserModal({ roles, onClose, onSuccess }: { roles: Role[]; onClose
 }
 
 function EditUserModal({ user, roles, onClose, onSuccess }: { user: User; roles: Role[]; onClose: () => void; onSuccess: () => void }) {
+  // Nadie puede desactivarse ni cambiar sus propios roles (el backend también lo impide)
+  const isSelf = useAuthStore((s) => s.user?.sub) === user.login;
   const currentGroupId = user.groupIds?.[0];
   const [form, setForm] = useState({
     name:        user.name ?? '',
@@ -394,7 +396,7 @@ function EditUserModal({ user, roles, onClose, onSuccess }: { user: User; roles:
         </>}
 
         <FormField label="Activar usuario">
-          <select className="input" value={form.active} onChange={(e) => setForm({ ...form, active: e.target.value })}>
+          <select className="input" value={form.active} disabled={isSelf} onChange={(e) => setForm({ ...form, active: e.target.value })}>
             <option value="Y">Sí</option><option value="N">No</option>
           </select>
         </FormField>
@@ -406,13 +408,19 @@ function EditUserModal({ user, roles, onClose, onSuccess }: { user: User; roles:
           </p>
         </div>
 
-        <FormField label="Actualizar tipo de usuario">
-          <select className="input" value={form.updateRole} onChange={(e) => setForm({ ...form, updateRole: e.target.value })}>
-            <option value="N">No</option><option value="Y">Sí</option>
-          </select>
-        </FormField>
+        {isSelf ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+            No puedes desactivarte ni cambiar tus propios roles. Pídeselo a otro usuario con permiso.
+          </p>
+        ) : (
+          <FormField label="Actualizar tipo de usuario">
+            <select className="input" value={form.updateRole} onChange={(e) => setForm({ ...form, updateRole: e.target.value })}>
+              <option value="N">No</option><option value="Y">Sí</option>
+            </select>
+          </FormField>
+        )}
 
-        {form.updateRole === 'Y' && (
+        {!isSelf && form.updateRole === 'Y' && (
           <FormField label="Nuevo tipo de usuario *" error={errors.newGroupId}>
             <select className="input" value={form.newGroupId} onChange={(e) => setForm({ ...form, newGroupId: e.target.value })}>
               <option value="">Seleccione una opción</option>

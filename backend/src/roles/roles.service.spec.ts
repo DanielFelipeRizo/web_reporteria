@@ -11,15 +11,17 @@ const GROUP_APPS = [
   { group_id: 5, app_name: 'ventas',  priv_access: 'Y' },
 ];
 
+// El gestor tiene asignado el rol 6 (además de los permisos de abajo)
 const GESTOR: Actor = {
   login: 'gestor',
+  groupIds: [6],
   isAdmin: false,
   permissions: buildPermissionsMap([
     { app_name: 'ventas', priv_access: 'Y' },
     { app_name: 'seguridad.roles', priv_access: 'Y', priv_insert: 'Y', priv_update: 'Y', priv_delete: 'Y' },
   ]),
 };
-const ADMIN: Actor = { login: 'admin', isAdmin: true, permissions: {} };
+const ADMIN: Actor = { login: 'admin', groupIds: [1], isAdmin: true, permissions: {} };
 
 describe('RolesService', () => {
   let service: RolesService;
@@ -54,9 +56,15 @@ describe('RolesService', () => {
     });
 
     it('un gestor otorga permisos que sí tiene', async () => {
-      await service.updatePermissions(6, [{ app_name: 'ventas', priv_access: 'Y', priv_export: 'N' }], GESTOR);
+      await service.updatePermissions(5, [{ app_name: 'ventas', priv_access: 'Y', priv_export: 'N' }], GESTOR);
 
       expect(prisma.sec_groups_apps.upsert).toHaveBeenCalledTimes(1);
+    });
+
+    it('un gestor no puede modificar un rol que tiene asignado', async () => {
+      await expect(service.updatePermissions(6, [{ app_name: 'ventas', priv_access: 'N' }], GESTOR))
+        .rejects.toThrow('No puedes modificar un rol que tienes asignado');
+      expect(prisma.sec_groups_apps.upsert).not.toHaveBeenCalled();
     });
 
     it('un gestor quita permisos de un rol que está a su alcance', async () => {
@@ -70,6 +78,17 @@ describe('RolesService', () => {
 
       expect(prisma.sec_groups_apps.upsert).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('nadie puede eliminar el rol Administrator, tampoco un administrador', async () => {
+    await expect(service.remove(1, ADMIN)).rejects.toThrow('El rol Administrator no se puede eliminar');
+    expect(prisma.sec_groups.delete).not.toHaveBeenCalled();
+  });
+
+  it('un administrador puede eliminar otros roles', async () => {
+    await service.remove(5, ADMIN);
+
+    expect(prisma.sec_groups.delete).toHaveBeenCalledWith({ where: { group_id: 5 } });
   });
 
   it('un gestor no puede modificar el rol Administrator', async () => {

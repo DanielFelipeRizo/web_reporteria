@@ -11,6 +11,9 @@ import { rolesService, Role } from '@/services/roles.service';
 
 const PAGE_SIZE = 10;
 
+// Rol "Administrator": el backend no permite eliminarlo
+const ADMIN_GROUP_ID = 1;
+
 export default function RolesPage() {
   const router = useRouter();
   const [roles, setRoles]     = useState<Role[]>([]);
@@ -103,7 +106,9 @@ export default function RolesPage() {
                     <td style={{ padding: '0.65rem 1rem' }}>
                       <div style={{ display: 'flex', gap: '0.4rem' }}>
                         <ActionBtn icon={<Pencil size={13} />} color="var(--accent-light)" title="Editar nombre" onClick={() => setEditRole(r)} />
-                        <ActionBtn icon={<Trash2 size={13} />} color="var(--danger)" title="Eliminar" onClick={() => setDeleteRole(r)} />
+                        {r.group_id !== ADMIN_GROUP_ID && (
+                          <ActionBtn icon={<Trash2 size={13} />} color="var(--danger)" title="Eliminar" onClick={() => setDeleteRole(r)} />
+                        )}
                       </div>
                     </td>
                     <td style={{ padding: '0.65rem 1rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.group_id}</td>

@@ -74,6 +74,37 @@ describe('UsersService', () => {
     await expect(service.update('admin', { usr_active: 'N' }, await actor('gestor'))).rejects.toThrow(ForbiddenException);
   });
 
+  describe('acciones sobre uno mismo', () => {
+    it('nadie puede desactivarse, tampoco un administrador', async () => {
+      await expect(service.update('admin', { usr_active: 'N' }, await actor('admin')))
+        .rejects.toThrow('No puedes desactivar tu propio usuario');
+      expect(prisma.sec_users.update).not.toHaveBeenCalled();
+    });
+
+    it('sí puede editar sus propios datos (el formulario reenvía usr_active = Y)', async () => {
+      await service.update('admin', { name: 'Nuevo nombre', usr_active: 'Y' }, await actor('admin'));
+
+      expect(prisma.sec_users.update).toHaveBeenCalled();
+    });
+
+    it('un administrador no puede quitarse el rol Administrator', async () => {
+      await expect(service.assignRoles('admin', [2], await actor('admin'))).rejects.toThrow('No puedes cambiar tus propios roles');
+      expect(prisma.sec_users_groups.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('reenviar los mismos roles no cuenta como cambio', async () => {
+      await expect(service.assignRoles('gestor', [4], await actor('gestor'))).resolves.toBeDefined();
+    });
+
+    it('un administrador sí puede desactivar a otro administrador', async () => {
+      USER_GROUPS.admin2 = [1];
+      await service.update('admin2', { usr_active: 'N' }, await actor('admin'));
+      delete USER_GROUPS.admin2;
+
+      expect(prisma.sec_users.update).toHaveBeenCalled();
+    });
+  });
+
   describe('assignRoles', () => {
     it('un gestor no puede asignar un rol con permisos que él no tiene', async () => {
       await expect(service.assignRoles('vendedor', [2], await actor('gestor')))

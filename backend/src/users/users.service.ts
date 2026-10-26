@@ -127,6 +127,10 @@ export class UsersService {
 
   /** Edita datos del usuario (sin cambiar password) */
   async update(login: string, data: { name?: string; email?: string; usr_active?: string }, actor: Actor) {
+    if (login === actor.login && data.usr_active === 'N') {
+      throw new ForbiddenException('No puedes desactivar tu propio usuario');
+    }
+
     const user = await this.prisma.sec_users.findUnique({ where: { login } });
     if (!user) throw new NotFoundException(`Usuario '${login}' no encontrado`);
     await this.assertCanManage(actor, login);
@@ -195,6 +199,13 @@ export class UsersService {
 
   /** Asigna/reemplaza los roles de un usuario */
   async assignRoles(login: string, groupIds: number[], actor: Actor) {
+    // Quitarse un rol propio puede dejarlo sin acceso (o al sistema sin administradores)
+    if (login === actor.login) {
+      const requested = new Set(groupIds);
+      const unchanged = requested.size === actor.groupIds.length && actor.groupIds.every((id) => requested.has(id));
+      if (!unchanged) throw new ForbiddenException('No puedes cambiar tus propios roles');
+    }
+
     const user = await this.prisma.sec_users.findUnique({ where: { login } });
     if (!user) throw new NotFoundException(`Usuario '${login}' no encontrado`);
     await this.assertCanAssignRoles(actor, login, groupIds);

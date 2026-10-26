@@ -17,6 +17,7 @@ export type PermissionsMap = Record<string, Record<string, boolean>>;
 /** Usuario que hace la petición, con permisos leídos de la BD (lo carga PermissionsGuard) */
 export interface Actor {
   login: string;
+  groupIds: number[];
   isAdmin: boolean;
   permissions: PermissionsMap;
 }
