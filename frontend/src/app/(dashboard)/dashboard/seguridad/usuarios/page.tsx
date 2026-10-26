@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
   UserPlus, Pencil, Trash2, Search, X, Eye, EyeOff,
-  Loader2, CheckCircle, XCircle, ChevronLeft, ChevronRight,
+  Loader2, CheckCircle, XCircle, ChevronLeft, ChevronRight, Lock,
 } from 'lucide-react';
 import { usersService } from '@/services/users.service';
 import { rolesService, Role } from '@/services/roles.service';
@@ -127,6 +127,13 @@ export default function UsuariosPage() {
                       {u.usr_active === 'Y'
                         ? <span className="badge badge-success"><CheckCircle size={10} /> Activo</span>
                         : <span className="badge badge-danger"><XCircle size={10} /> Inactivo</span>}
+                      {/* Se desbloquea solo al vencer, o asignándole una contraseña nueva */}
+                      {u.usr_bloqueado_hasta && new Date(u.usr_bloqueado_hasta) > new Date() && (
+                        <span className="badge badge-warning" style={{ marginLeft: '0.3rem' }}
+                          title="Bloqueado por intentos fallidos. Asignarle una contraseña nueva lo desbloquea.">
+                          <Lock size={10} /> Bloqueado hasta {new Date(u.usr_bloqueado_hasta).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '0.65rem 1rem' }}>
                       {/* Muestra todos los roles del usuario */}

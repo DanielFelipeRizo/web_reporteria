@@ -253,6 +253,8 @@ model sec_users {
   usr_fecha_exp_clave        DateTime?                    @db.Timestamp(6)
   usr_fecha_creacion_clave   DateTime?                    @db.Timestamp(6)
   usr_intentos               Int?
+  /// Fin del bloqueo temporal por intentos fallidos de login (null = no bloqueado)
+  usr_bloqueado_hasta        DateTime?                    @db.Timestamp(6)
   UsuarioAlta                String?                      @db.VarChar(20)
   FechaAlta                  DateTime?                    @db.Timestamp(6)
   UsuarioUltAlta             String?                      @db.VarChar(20)

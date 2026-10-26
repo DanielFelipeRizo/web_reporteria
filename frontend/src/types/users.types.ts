@@ -4,6 +4,7 @@ export interface User {
   email:       string | null;
   usr_active:  string | null;  // 'Y' | 'N'
   priv_admin:  string | null;
+  usr_bloqueado_hasta?: string | null;  // bloqueo temporal por intentos fallidos
   groupIds?:   number[];
   roles?:      { group_id: number; description: string }[];
 }

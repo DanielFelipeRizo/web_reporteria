@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { createHash } from 'crypto';
 import { AuthService, PASSWORD_CHANGE_REQUIRED } from './auth.service';
@@ -15,11 +15,15 @@ describe('AuthService', () => {
     findByLogin: jest.fn(),
     upgradePasswordHash: jest.fn(),
     changePassword: jest.fn(),
+    startLoginAttempt: jest.fn().mockResolvedValue(1),
+    lockAccount: jest.fn().mockImplementation((_login: string, min: number) => new Date(Date.now() + min * 60_000)),
+    clearFailedLogins: jest.fn(),
   };
   const jwtService = { signAsync: jest.fn().mockResolvedValue('token-firmado') };
 
   const usuario = (cambios: Record<string, unknown> = {}) => ({
     login: 'ana', name: 'Ana', email: 'ana@demo.test', usr_active: 'Y', usr_fecha_exp_clave: null,
+    usr_intentos: 0, usr_bloqueado_hasta: null,
     isAdmin: false, permissions: {}, pswd: bcryptHash, ...cambios,
   });
   const vencida = () => usuario({ usr_fecha_exp_clave: new Date(Date.now() - 1000) });
@@ -100,6 +104,64 @@ describe('AuthService', () => {
       usersService.findByLogin.mockResolvedValue(usuario({ usr_fecha_exp_clave: new Date(Date.now() + 86_400_000) }));
 
       await expect(service.signIn('ana', CLAVE)).resolves.toMatchObject({ access_token: 'token-firmado' });
+    });
+  });
+
+  describe('intentos fallidos', () => {
+    const enMinutos = (min: number) => new Date(Date.now() + min * 60_000);
+
+    const estado429 = (error: unknown) => (error as HttpException).getStatus();
+
+    it('cuenta el intento antes de revisar la clave y no bloquea antes del quinto', async () => {
+      usersService.findByLogin.mockResolvedValue(usuario());
+      usersService.startLoginAttempt.mockResolvedValueOnce(4);
+
+      await expect(service.signIn('ana', 'otra')).rejects.toThrow(new UnauthorizedException('Credenciales inválidas'));
+      expect(usersService.startLoginAttempt).toHaveBeenCalledWith('ana');
+      expect(usersService.lockAccount).not.toHaveBeenCalled();
+    });
+
+    it('el quinto intento fallido bloquea 15 minutos y lo avisa', async () => {
+      usersService.findByLogin.mockResolvedValue(usuario());
+      usersService.startLoginAttempt.mockResolvedValueOnce(5);
+
+      await expect(service.signIn('ana', 'otra')).rejects.toThrow('La cuenta quedó bloqueada 15 minutos');
+      expect(usersService.lockAccount).toHaveBeenCalledWith('ana', 15);
+    });
+
+    it('un intento por encima del límite (ráfaga en paralelo) no llega a probar la clave', async () => {
+      usersService.findByLogin.mockResolvedValue(usuario());
+      usersService.startLoginAttempt.mockResolvedValueOnce(6);
+
+      const error = await service.signIn('ana', CLAVE).catch((e: unknown) => e);
+
+      expect(estado429(error)).toBe(429);
+      expect(jwtService.signAsync).not.toHaveBeenCalled();
+    });
+
+    it('si otro intento la bloqueó mientras tanto, responde 429', async () => {
+      usersService.findByLogin.mockResolvedValue(usuario());
+      usersService.startLoginAttempt.mockResolvedValueOnce(null);
+
+      expect(estado429(await service.signIn('ana', CLAVE).catch((e: unknown) => e))).toBe(429);
+    });
+
+    it('con la cuenta bloqueada responde 429 sin revisar la contraseña, aunque sea correcta', async () => {
+      usersService.findByLogin.mockResolvedValue(usuario({ usr_bloqueado_hasta: enMinutos(10) }));
+
+      const error = await service.signIn('ana', CLAVE).catch((e: HttpException) => e);
+
+      expect(estado429(error)).toBe(429);
+      expect((error as HttpException).message).toContain('Intenta de nuevo en 10 minutos');
+      expect(usersService.startLoginAttempt).not.toHaveBeenCalled();
+      expect(jwtService.signAsync).not.toHaveBeenCalled();
+    });
+
+    it('un bloqueo ya vencido no impide entrar, y un login correcto reinicia el contador', async () => {
+      usersService.findByLogin.mockResolvedValue(usuario({ usr_bloqueado_hasta: enMinutos(-1) }));
+
+      await expect(service.signIn('ana', CLAVE)).resolves.toMatchObject({ access_token: 'token-firmado' });
+      expect(usersService.clearFailedLogins).toHaveBeenCalledWith('ana');
     });
   });
 

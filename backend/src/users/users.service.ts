@@ -15,6 +15,48 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * Cuenta un intento de login ANTES de revisar la contraseña y devuelve su
+   * número, o null si la cuenta está bloqueada. El incremento es atómico en
+   * SQL: aunque lleguen muchos intentos en paralelo, cada uno recibe un número
+   * distinto, así que solo los primeros llegan a probar una clave.
+   * Las fechas se guardan en UTC (sin zona), por eso se compara con now() en UTC.
+   */
+  async startLoginAttempt(login: string): Promise<number | null> {
+    const rows = await this.prisma.$queryRaw<{ usr_intentos: number }[]>`
+      UPDATE "sec_users" SET "usr_intentos" = COALESCE("usr_intentos", 0) + 1
+      WHERE "login" = ${login}
+        AND ("usr_bloqueado_hasta" IS NULL OR "usr_bloqueado_hasta" <= (now() AT TIME ZONE 'UTC'))
+      RETURNING "usr_intentos"
+    `;
+    return rows[0]?.usr_intentos ?? null;
+  }
+
+  /**
+   * Bloquea la cuenta `minutes` minutos y reinicia el contador, para que al
+   * terminar el bloqueo vuelva a tener todos los intentos. Devuelve la fecha de fin.
+   */
+  async lockAccount(login: string, minutes: number): Promise<Date> {
+    const lockedUntil = new Date(Date.now() + minutes * 60_000);
+    const { count } = await this.prisma.sec_users.updateMany({
+      where: { login, OR: [{ usr_bloqueado_hasta: null }, { usr_bloqueado_hasta: { lte: new Date() } }] },
+      data: { usr_intentos: 0, usr_bloqueado_hasta: lockedUntil },
+    });
+    if (count > 0) return lockedUntil;
+
+    // Otro intento en paralelo ya la bloqueó: se respeta ese bloqueo
+    const user = await this.prisma.sec_users.findUnique({ where: { login }, select: { usr_bloqueado_hasta: true } });
+    return user?.usr_bloqueado_hasta ?? lockedUntil;
+  }
+
+  /** Login correcto: reinicia el contador de intentos fallidos y quita el bloqueo */
+  async clearFailedLogins(login: string) {
+    await this.prisma.sec_users.update({
+      where: { login },
+      data: { usr_intentos: 0, usr_bloqueado_hasta: null },
+    });
+  }
+
+  /**
    * Un no-administrador solo gestiona usuarios que no tengan más permisos que él;
    * si no, podría por ejemplo cambiarle la contraseña a un administrador y entrar como él.
    */
@@ -76,7 +118,7 @@ export class UsersService {
     const users = await this.prisma.sec_users.findMany({
       select: {
         login: true, name: true, email: true,
-        usr_active: true, priv_admin: true,
+        usr_active: true, priv_admin: true, usr_bloqueado_hasta: true,
         FechaAlta: true, FechaHoraUltAct: true,
       },
       orderBy: { login: 'asc' },
@@ -196,6 +238,9 @@ export class UsersService {
         pswd: newHash,
         usr_fecha_creacion_clave: new Date(),
         usr_fecha_exp_clave: expire ? new Date() : null,
+        // Con contraseña nueva se levanta el bloqueo: así un gestor desbloquea una cuenta
+        usr_intentos: 0,
+        usr_bloqueado_hasta: null,
         FechaHoraUltAct: new Date(),
       },
     });

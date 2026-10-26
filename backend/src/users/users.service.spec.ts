@@ -23,6 +23,7 @@ describe('UsersService', () => {
     sec_users: {
       findUnique: jest.fn(({ where }) => (where.login in USER_GROUPS ? { login: where.login, pswd: 'x', usr_active: 'Y' } : null)),
       update: jest.fn(),
+      updateMany: jest.fn(),
       delete: jest.fn(),
       create: jest.fn(),
     },
@@ -36,6 +37,7 @@ describe('UsersService', () => {
       findMany: jest.fn(({ where }) => GROUP_APPS.filter((row) => where.group_id.in.includes(row.group_id))),
     },
     sec_users_historico_claves: { create: jest.fn(), deleteMany: jest.fn() },
+    $queryRaw: jest.fn(),
   };
   const actor = async (login: string) => (await service.findByLogin(login)) as Actor;
 
@@ -63,6 +65,49 @@ describe('UsersService', () => {
     it.each(['admin', 'consulta'])('un gestor no puede eliminar a %s, que tiene más permisos', async (login) => {
       await expect(service.remove(login, await actor('gestor'))).rejects.toThrow(ForbiddenException);
       expect(prisma.sec_users.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('intentos fallidos de login', () => {
+    it('cuenta el intento en un solo UPDATE atómico que excluye cuentas bloqueadas', async () => {
+      prisma.$queryRaw.mockResolvedValueOnce([{ usr_intentos: 3 }]);
+
+      await expect(service.startLoginAttempt('vendedor')).resolves.toBe(3);
+
+      const [sql, login] = prisma.$queryRaw.mock.calls[0];
+      const texto = (sql as string[]).join('?');
+      expect(texto).toContain('COALESCE("usr_intentos", 0) + 1');
+      expect(texto).toContain('"usr_bloqueado_hasta" <= (now() AT TIME ZONE \'UTC\')');
+      expect(login).toBe('vendedor');
+    });
+
+    it('devuelve null si la cuenta está bloqueada (el UPDATE no afecta filas)', async () => {
+      prisma.$queryRaw.mockResolvedValueOnce([]);
+
+      await expect(service.startLoginAttempt('vendedor')).resolves.toBeNull();
+    });
+
+    it('bloquea por los minutos indicados y reinicia el contador', async () => {
+      prisma.sec_users.updateMany.mockResolvedValueOnce({ count: 1 });
+
+      const lockedUntil = await service.lockAccount('vendedor', 15);
+
+      expect(lockedUntil.getTime() - Date.now()).toBeGreaterThan(14 * 60_000);
+      expect(prisma.sec_users.updateMany.mock.calls[0][0].data).toEqual({ usr_intentos: 0, usr_bloqueado_hasta: lockedUntil });
+    });
+
+    it('si otro intento ya la bloqueó, respeta ese bloqueo', async () => {
+      const existente = new Date(Date.now() + 5 * 60_000);
+      prisma.sec_users.updateMany.mockResolvedValueOnce({ count: 0 });
+      (prisma.sec_users.findUnique as jest.Mock).mockResolvedValueOnce({ usr_bloqueado_hasta: existente });
+
+      await expect(service.lockAccount('vendedor', 15)).resolves.toBe(existente);
+    });
+
+    it('asignar una contraseña nueva levanta el bloqueo', async () => {
+      await service.resetPassword('vendedor', 'Clave-Temporal1', await actor('gestor'));
+
+      expect(prisma.sec_users.update.mock.calls.at(-1)[0].data).toMatchObject({ usr_intentos: 0, usr_bloqueado_hasta: null });
     });
   });
 
